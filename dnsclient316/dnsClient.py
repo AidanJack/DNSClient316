@@ -3,6 +3,7 @@ import time
 import sys
 import threading
 import argparse
+import random
 parser = argparse.ArgumentParser()
 
 
@@ -27,10 +28,64 @@ def initializeSocket(ip, port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((ip, port))
     return s
+
+def generatePacketID():
+    headerID = bytearray()
+    for i in range(2):
+        r = random.randint(0, 255)
+        headerID.append(r)
+    return headerID
+
+def generateQueryFlags():
+    flags = bytearray()
+    flags.append(1)
+    flags.append(0)
+    return flags
+
+def generateQDCount():
+    qCount = bytearray()
+    qCount.append(0)
+    qCount.append(1)
+    return qCount
+
+def generateANCount():
+    aCount = bytearray()
+    aCount.append(0)
+    aCount.append(0)
+    return aCount
+
+def generateNSCount():
+    nCount = bytearray()
+    nCount.append(0)
+    nCount.append(0)
+    return nCount
+
+def generateARCount():
+    aCount = bytearray()
+    aCount.append(0)
+    aCount.append(0)
+    return aCount
+
+def generateNRCount():
+    nrCount = bytearray()
+    nrCount.append(0)
+    nrCount.append(0)
+    return nrCount
+
 # Generates  and returns a formatted DNS request Header.
 def generateDNSHeader():
-    header = ""
+    header = bytearray()
+    header.append(generatePacketID())
+    header.extend(generateQueryFlags()) # For us it should always be 1, and 0
+    header.extend(generateQDCount()) # QDCount is always 1 for us
+    header.extend(generateANCount()) # Default 0, only regarded in response packets
+    header.extend(generateNSCount())
+    header.extend(generateNRCount())
     return header
+
+def generateDNSQuestions():
+    questions = bytearray()
+    return questions
 
 def sendDNSRequest():
     print("Sent")
@@ -44,6 +99,11 @@ if __name__ == '__main__':
 
     serverIP = args.server.replace("@", "")
     sock = initializeSocket(serverIP, args.port)  # Initializes a socket object and connects to the server.
+
+    packet = generateDNSHeader()
+
+
+
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
