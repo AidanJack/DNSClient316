@@ -83,8 +83,32 @@ def generateDNSHeader():
     header.extend(generateNRCount())
     return header
 
-def generateDNSQuestions():
+def generateQName(name):
+    qName = bytearray()
+    tokens = name.split('.')
+    for token in tokens:
+        token = token.replace(" ", "")
+        qName.append(len(token))
+        for char in token:
+            qName.append(char)
+    qName.append(0)
+    return qName
+
+def generateQType():
+    qType = bytearray() #needs to choose between 1, 2, and 3. for now use 1 since default ip type.
+    qType.append(0)
+    qType.append(1)
+    return qType
+
+def generateQClass():
+    qClass = bytearray()
+    qClass.append(0)
+    qClass.append(1)
+    return qClass
+
+def generateDNSQuestions(name):
     questions = bytearray()
+    questions.extend(generateQName(name))
     return questions
 
 def sendDNSRequest():
@@ -101,6 +125,9 @@ if __name__ == '__main__':
     sock = initializeSocket(serverIP, args.port)  # Initializes a socket object and connects to the server.
 
     packet = generateDNSHeader()
+    packet.extend(generateDNSQuestions(args.domain))
+    packet.extend(generateQType())
+    packet.extend(generateQClass())
 
 
 
