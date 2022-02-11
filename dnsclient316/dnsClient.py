@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser()
 def printArgs():
     print(args.timeout)
     print(args.port)
+    print(args.mx)
     print(args.server)
     print(args.domain)
 
@@ -36,12 +37,32 @@ if __name__ == '__main__':
     addTerminalArgs()
     args = parser.parse_args()
     printArgs()
-
     packet = DNS.generateDNSHeader()
     packet.extend(DNS.generateDNSQuestions(args.domain))
 
-    serverIP = args.server.replace("@", "")
-    sock = initializeSocket(serverIP, args.port)  # Initializes a socket object and connects to the server.
+    serverIP = args.server.replace("@", "").replace(" ", "")  # Initializes a socket object and connects to the server.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+    try:
+        sock.connect((serverIP, args.port))
+    except RuntimeError:
+        print("Could not connect to ", serverIP)
+    else:
+        print("Connection Established with ", serverIP)
+    try:
+        sock.send(packet)
+    except socket.error:
+        print("Query not sent")
+    print("Packet sent!", packet)
+    while True:
+        received_packet = sock.recv(1024)
+        print("Data: ", received_packet)
+        if len(received_packet) <= 0:
+            break
+    sock.close()
+
+
+
+
 
 
 
