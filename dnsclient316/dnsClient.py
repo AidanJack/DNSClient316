@@ -52,14 +52,16 @@ def parseAnsCount(received_packet):
     return int(anscount)
 
 def parseAuthorative(received_packet):
-    aa_byte = bin(received_packet[3])
+    aa_byte = bin(received_packet[2])
     if int(aa_byte[-3]) == 0: # AA bit in header
         return False
     else:
         return True
 
-def binaryValue(arg_to_bin):
-    pass
+def parseRecursive(received_packet):
+    ra_byte = bin(received_packet[3])
+    return int(ra_byte[2])
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
