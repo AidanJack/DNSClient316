@@ -43,7 +43,22 @@ def outputFormatting(response_received, r_type, responseIP, RTT, retries, n_answ
             output += f"CNAME <tab> [alias] <tab> [seconds can cache] <tab> [auth | nonauth]\n"
     return output
 
-def parseResponseData(received_packet):
+def parseAnsCount(received_packet):
+    msbits = received_packet[6]
+    msbits = msbits * (2**8)
+    msbits = bin(msbits)
+    lsbits = bin(received_packet[7])
+    anscount = msbits + lsbits
+    return int(anscount)
+
+def parseAuthorative(received_packet):
+    aa_byte = bin(received_packet[3])
+    if int(aa_byte[-3]) == 0: # AA bit in header
+        return False
+    else:
+        return True
+
+def binaryValue(arg_to_bin):
     pass
 
 # Press the green button in the gutter to run the script.
@@ -89,7 +104,8 @@ if __name__ == '__main__':
     else:                   # Case 2: Recevied response
         #parseResponseData()
         response_time = end_time-start_time
-        print(outputFormatting(True, 1, "1.2.3.4", response_time, num_retries, 1)) # replace fillers with answers parsed from response
+        num_answers = parseAnsCount(received_packet)
+        print(outputFormatting(True, 1, "1.2.3.4", response_time, num_retries, num_answers)) # replace fillers with answers parsed from response
 
 
     for i in range(len(packet)):
