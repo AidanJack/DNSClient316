@@ -44,23 +44,38 @@ def outputFormatting(response_received, r_type, responseIP, RTT, retries, n_answ
     return output
 
 def parseAnsCount(received_packet):
-    msbits = received_packet[6]
-    msbits = msbits * (2**8)
-    msbits = bin(msbits)
-    lsbits = bin(received_packet[7])
+    msbits = int(received_packet[0])
+    msbits = msbits << 8
+    lsbits = received_packet[1]
     anscount = msbits + lsbits
-    return int(anscount)
+    return anscount
 
 def parseAuthorative(received_packet):
-    aa_byte = bin(received_packet[2])
+    aa_byte = bin(received_packet[0])
+    if len(aa_byte)<5:
+        return False
     if int(aa_byte[-3]) == 0: # AA bit in header
         return False
     else:
         return True
 
 def parseRecursive(received_packet):
-    ra_byte = bin(received_packet[3])
-    return int(ra_byte[2])
+    ra_byte = bin(received_packet[0])
+    if len(ra_byte)<10 or int(ra_byte[2]) == 0:
+        return False
+    else:
+        return True
+
+#when converted to binary number --> string with form 0bxxxxxxe
+def responseCodeParser(received_packet):
+    rcode_byte = bin(received_packet[1])
+    error_code = 0
+    rcode0 = int(rcode_byte[-1])
+    rcode1 = int(rcode_byte[-2]) << 1
+    rcode2 = int(rcode_byte[-3]) << 2
+    rcode3 = int(rcode_byte[-4]) << 3
+    error_code = rcode0 + rcode1 + rcode2+ rcode3
+    return error_code #if not 0 - return appropriate error message
 
 
 # Press the green button in the gutter to run the script.
