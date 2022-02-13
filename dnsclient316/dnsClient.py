@@ -1,3 +1,4 @@
+from distutils.log import error
 import socket
 import time
 import sys
@@ -33,7 +34,7 @@ def initializeSocket(ip, port):
     return s
 
 #r_type: 1->IP 2->CNAME 3->MX 4->NS
-def outputFormatting(response_received, r_type, responseIP, RTT, retries, n_answers):
+def outputFormatting(response_received, r_type, responseIP, RTT, retries, n_answers, error_code):
     output = f"\nDNS Client sending request for\n{args.domain} Server: {responseIP}\nRequest type: {args.mx}\n\n"
     if response_received:
         output += f"Response received after {RTT} seconds ({retries} retries)\n\n***Answer Section ({n_answers} records)***\n\n"
@@ -41,10 +42,52 @@ def outputFormatting(response_received, r_type, responseIP, RTT, retries, n_answ
             output += f"IP\t[ip address]\t[seconds can cache]\t[auth | nonauth]\n"
         elif r_type == 2:
             output += f"CNAME <tab> [alias] <tab> [seconds can cache] <tab> [auth | nonauth]\n"
+    elif error_code == 1:
+        output += f"ERROR   Format error: the name server was unable to interpret the query\n" 
+    elif error_code == 2: 
+        output += f"ERROR   Server failure: the name server was unable to process this query due to a problem with the name server\n"
+    elif error_code == 3:
+        output += f"ERROR   Not found: The domain name referenced in the query does not exist\n"
+    elif error_code == 4:
+        output += f"ERROR   Not implemented: The name server does not support the requested kind of query\n"
+    elif error_code == 5: 
+        output += f"ERROR   Refused: The name server refuses to perform the requested operation for policy reasons\n"
     return output
 
-def parseResponseData(received_packet):
-    pass
+def parseAnsCount(received_packet):
+    msbits = int(received_packet[6])
+    msbits = msbits << 8
+    lsbits = received_packet[7]
+    anscount = msbits + lsbits
+    return anscount
+
+def parseAuthorative(received_packet):
+    aa_byte = bin(received_packet[2])
+    if len(aa_byte)<5:
+        return False
+    if int(aa_byte[-3]) == 0: # AA bit in header
+        return False
+    else:
+        return True
+
+def parseRecursive(received_packet):
+    ra_byte = bin(received_packet[3])
+    if len(ra_byte)<10 or int(ra_byte[2]) == 0:
+        return False
+    else:
+        return True
+
+#when converted to binary number --> string with form 0bxxxxxxe
+def responseCodeParser(received_packet):
+    rcode_byte = bin(received_packet[1])
+    error_code = 0
+    rcode0 = int(rcode_byte[-1])
+    rcode1 = int(rcode_byte[-2]) << 1
+    rcode2 = int(rcode_byte[-3]) << 2
+    rcode3 = int(rcode_byte[-4]) << 3
+    error_code = rcode0 + rcode1 + rcode2+ rcode3
+    return error_code #if not 0 - return appropriate error message
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -89,7 +132,8 @@ if __name__ == '__main__':
     else:                   # Case 2: Recevied response
         #parseResponseData()
         response_time = end_time-start_time
-        print(outputFormatting(True, 1, "1.2.3.4", response_time, num_retries, 1)) # replace fillers with answers parsed from response
+        num_answers = parseAnsCount(received_packet)
+        print(outputFormatting(True, 1, "1.2.3.4", response_time, num_retries, num_answers)) # replace fillers with answers parsed from response
 
 
     for i in range(len(packet)):
