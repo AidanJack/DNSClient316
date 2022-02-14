@@ -6,14 +6,17 @@ import random
 from dns import DNS
 from argumentparser import Parser
 
+
 def main():
-        args = Parser(sys.argv)
+    # Initializes Terminal Arguments Parser
+    args = Parser(sys.argv)
+    serverIP = args.server.replace("@", "").replace(" ", "") 
+
+    # Generates the query packet
     packet = DNS.generateDNSHeader()
     packet.extend(DNS.generateDNSQuestions(args.domain))
 
-    serverIP = args.server.replace("@", "").replace(" ", "") 
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)# Initializes a socket object and connects to the server.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
     response_time = 0
     num_retries = 0
@@ -22,11 +25,11 @@ def main():
     print(f"\nDNS Client sending request for\n{args.domain} Server: {serverIP}\nRequest type: {args.queryType}\n\n")
 
     for i in range(args.retries):
-        sock.sendto(packet, addr) 
+        sock.sendto(packet, addr) # Send packet and start timer for timeout
         start_time = time.time()
         while True:
             end_time = time.time()
-            if end_time - start_time > int(args.timeout):
+            if end_time - start_time > int(args.timeout): # If time from send to receive exceeds timeout resend and retry
                 num_retries = num_retries+1
                 break
             received_packet, _ = sock.recvfrom(4096)
@@ -37,23 +40,30 @@ def main():
         if i == int(args.retries) - 1:
             retried_max = True
 
-    if retried_max == True: #Case 1: Server never received
+    if retried_max == True: #Case 1: Did not receive response
         print(f"ERROR\tMaximum number of retries {args.retries} exceeded")
     else:                   # Case 2: Recevied response
-        response_fields = answerParser(packet, received_packet, args.domain) #r_type ->0, r_class->1, r_ttl->2, rdlength->3, record->4, pref->5
+        response_fields = answerParser(packet, received_packet, args.domain) #r_type->0, r_class->1, r_ttl->2, rdlength->3, record->4, pref->5
         response_time = end_time-start_time
         num_answers = parseAnsCount(received_packet)
         print(outputFormatting(True, response_fields[0], response_fields[4], response_fields[2], response_time, 
         num_retries, num_answers, responseCodeParser(received_packet), parseAuthoritative(received_packet), response_fields[5]))
 
+"""
+Replaces output string placeholders with values
 
-def initializeSocket(ip, port):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((ip, port))
-    return s
-
-
-#r_type: 1->IP 2->CNAME 3->MX 4->NS
+:param response_received_bool: True if a response was recevied, else False, bool
+:param r_type: Type of response record, 1->IP 2->CNAME 3->MX 4->NS, int
+:param responseIP: IP address of the query domain name, string
+:param TTL: Allowed time in seconds to cache to IP, int
+:param RTT: Response time from sent query to response received, int
+:param retries: Number of times to resend query, int
+:param n_answers: Number of response records received, int
+:param error_code: Error code provided by the server response, int
+:param auth: Server authoritative, "Auth" or "nonauth", string
+:param pref: Level of preference of mail address, int
+:Returns: formatted f string ready for output, string
+"""
 def outputFormatting(response_received_bool, r_type, responseIP, TTL, RTT, retries, n_answers, error_code, auth, pref):
     output = f""
     if response_received_bool:
@@ -81,7 +91,12 @@ def outputFormatting(response_received_bool, r_type, responseIP, TTL, RTT, retri
         
     return output
 
+"""
+Finds the number of answers in the response packet
 
+:param received_packet: Response packet received, bytearray
+:Returns: Number of answers in response packet, int 
+"""
 def parseAnsCount(received_packet):
     msbits = int(received_packet[6])
     msbits = msbits << 8
@@ -89,7 +104,12 @@ def parseAnsCount(received_packet):
     anscount = msbits + lsbits
     return anscount
 
+"""
+Retrieves the authoritative flag
 
+:param received_packet: Response packet received, bytearray
+:Returns: "auth" if server is authoritative, else: "nonauth", string
+"""
 def parseAuthoritative(received_packet):
     aa_byte = bin(received_packet[2])
     if len(aa_byte)<5:
@@ -99,7 +119,12 @@ def parseAuthoritative(received_packet):
     else:
         return "auth"
 
+"""
+Retrieves the recursive flag bit
 
+:param received_packet: Reponse packet received, bytearray
+:Returns: True->recursion, False->no recursion, bool
+"""
 def parseRecursive(received_packet):
     ra_byte = bin(received_packet[3])
     if len(ra_byte)<10 or int(ra_byte[2]) == 0:
@@ -107,7 +132,12 @@ def parseRecursive(received_packet):
     else:
         return True
 
+"""
+Parses the response error code
 
+:param received_packet: Response packet received, bytearray
+:Returns: Error code, 0->no error, !=0->some error, int
+"""
 #when converted to binary number --> string with form 0bxxxxxxe
 def responseCodeParser(received_packet):
     rcode_byte = bin(received_packet[1])
@@ -119,7 +149,13 @@ def responseCodeParser(received_packet):
     error_code = rcode0 + rcode1 + rcode2+ rcode3
     return error_code #if not 0 - return appropriate error message
 
+"""
+Formats a name from the response packet into a valid string
 
+:param response: Response packet received, bytearray
+:param index: Starting index of a name field, int
+:Returns: Formatted name, string
+"""
 def parseNameField(response, index):
     name = ""
     oldIndex = index
@@ -146,7 +182,12 @@ def parseNameField(response, index):
         name += "."
     return name[:-1]
 
+"""
+Finds the length of a name field
 
+:param response: Response packet received, bytearray
+:Returns: Length of name field, int
+"""
 def getRNameLength(response):
     if int(response[0]) - 192 >= 0:
         return 2
@@ -155,7 +196,14 @@ def getRNameLength(response):
             if int(response[i]) == 0:
                 return i+1
 
+"""
+Retrieves all the key information from the respponse section of the received packet
 
+:param queryPacket: Query packet sent, bytearray
+:param received_packet: Response packet received, bytearray
+:param queryName: Domain name in the query, string
+:Returns: Key values in answer section of response, 6-tuple
+"""
 def answerParser(queryPacket, received_packet, queryName):
     answer = received_packet[len(queryPacket):]
     return_list = []
@@ -215,6 +263,6 @@ def answerParser(queryPacket, received_packet, queryName):
 
         return (r_type, r_class, r_cache_time, r_rdlength, ip, pref)
 
-# Press the green button in the gutter to run the script.
+
 if __name__ == '__main__':
     main()
