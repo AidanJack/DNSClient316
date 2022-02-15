@@ -1,4 +1,5 @@
 import re
+import sys
 
 class Parser:
     def __init__(self, args):
@@ -21,43 +22,55 @@ class Parser:
             args_dict["server"] = args[len(args)-2].replace("@", "")
             args_dict["domain"] = args[len(args)-1]
         else:
-            print("Error! Valid server ip and domain required")
-            return
+            try:
+                raise ArgumentException(f"Invalid Arguments! python dnsClient.py [-t] [-p] [-r] [-mx|-ns] @a.b.c.d domainName")
+            except Exception as e:
+                print(e)
+                sys.exit()
 
         flags = args[1:-2]
         for i in range(len(flags)):
-            if flags[i].isdigit():
-                continue
-            match flags[i]:
-                case "-t":
-                    if not flags[i+1].isdigit():
-                        return "Error! Bad argument"
-                    args_dict["timeout"] = int(flags[i+1])
-                case "--timeout":
-                    if not flags[i+1].isdigit():
-                        return "Error! Bad argument"
-                    args_dict["timeout"] = int(flags[i+1])
-                case "-p": 
-                    if not flags[i+1].isdigit():
-                        return "Error! Bad argument"
-                    args_dict["port"] = int(flags[i+1])
-                case "--port":
-                    if not flags[i+1].isdigit():
-                        return "Error! Bad argument"
-                    args_dict["port"] = int(flags[i+1])
-                case "-r":
-                    if not flags[i+1].isdigit():
-                        return "Error! Bad argument"
-                    args_dict["retries"] = int(flags[i+1])     
-                case "--retries":
-                    if not flags[i+1].isdigit():
-                        return "Error! Bad argument"
-                    args_dict["retries"] = int(flags[i+1])
-                case "-mx":
-                    args_dict["queryType"] = "mx"
-                case "-ns":
-                    args_dict["queryType"] = "ns"
-                case _:
-                    print("Error: bad argument")
-                    return 
+            try:
+                if flags[0].isdigit():
+                    raise ArgumentException(f"Invalid Arguments! python dnsClient.py [-t] [-p] [-r] [-mx|-ns] @a.b.c.d domainName")
+                elif flags[i].isdigit():
+                    continue
+                
+                match flags[i]:
+                    case "-t":
+                        if not flags[i+1].isdigit():
+                            raise ArgumentException("Error! Bad argument")
+                        args_dict["timeout"] = int(flags[i+1])
+                    case "--timeout":
+                        if not flags[i+1].isdigit():
+                            raise ArgumentException("Error! Bad argument")
+                        args_dict["timeout"] = int(flags[i+1])
+                    case "-p": 
+                        if not flags[i+1].isdigit():
+                            raise ArgumentException("Error! Bad argument")
+                        args_dict["port"] = int(flags[i+1])
+                    case "--port":
+                        if not flags[i+1].isdigit():
+                            raise ArgumentException("Error! Bad argument")
+                        args_dict["port"] = int(flags[i+1])
+                    case "-r":
+                        if not flags[i+1].isdigit():
+                            raise ArgumentException("Error! Bad argument")
+                        args_dict["retries"] = int(flags[i+1])     
+                    case "--retries":
+                        if not flags[i+1].isdigit():
+                            raise ArgumentException("Error! Bad argument")
+                        args_dict["retries"] = int(flags[i+1])
+                    case "-mx":
+                        args_dict["queryType"] = "mx"
+                    case "-ns":
+                        args_dict["queryType"] = "ns"
+                    case _:
+                        raise ArgumentException("Error! Bad argument")
+            except Exception as e:
+                print(e)
+                sys.exit()
         return args_dict
+
+class ArgumentException(Exception):
+    pass

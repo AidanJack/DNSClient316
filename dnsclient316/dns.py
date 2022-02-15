@@ -76,7 +76,7 @@ class DNS:
 
     @staticmethod
     def generateQType(q_type): 
-        qType = bytearray("", "UTF-32-BE")  # needs to choose between 1, 2, and 15. for now use 1 since default ip type.
+        qType = bytearray("", "UTF-32-BE")  # needs to choose between 1, 2, and 15.
         if q_type == "mx":
             qType.append(0)
             qType.append(15)
