@@ -3,6 +3,7 @@ import socket
 import time
 import sys
 import random
+import re
 from dns import DNS
 from argumentparser import Parser
 
@@ -14,14 +15,19 @@ def main():
 
     # Generates the query packet
     packet = DNS.generateDNSHeader()
-    packet.extend(DNS.generateDNSQuestions(args.domain))
+    packet.extend(DNS.generateDNSQuestions(args.domain, args.queryType))
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setblocking(False)
     
     response_time = 0
     num_retries = 0
     addr = (serverIP, args.port)
     retried_max = False
+    flag = False
+    names = []
+    pattern_domain = "([0-9a-zA-Z]*.)*([0-9a-zA-Z]*)+.[0-9a-zA-Z]*"
+    names.append(args.domain)
     print(f"\nDNS Client sending request for\n{args.domain} Server: {serverIP}\nRequest type: {args.queryType}\n\n")
 
     for i in range(args.retries):
@@ -29,25 +35,48 @@ def main():
         start_time = time.time()
         while True:
             end_time = time.time()
-            if end_time - start_time > int(args.timeout): # If time from send to receive exceeds timeout resend and retry
+            if end_time - start_time > args.timeout: # If time from send to receive exceeds timeout resend and retry
                 num_retries = num_retries+1
                 break
-            received_packet, _ = sock.recvfrom(4096)
+            try:
+                received_packet, _ = sock.recvfrom(4096)
+            except:
+                continue
             flag = True
             break
         if flag == True:
             break
-        if i == int(args.retries) - 1:
+        if i == args.retries - 1:
             retried_max = True
 
     if retried_max == True: #Case 1: Did not receive response
         print(f"ERROR\tMaximum number of retries {args.retries} exceeded")
+    
     else:                   # Case 2: Recevied response
-        response_fields = answerParser(packet, received_packet, args.domain) #r_type->0, r_class->1, r_ttl->2, rdlength->3, record->4, pref->5
         response_time = end_time-start_time
         num_answers = parseAnsCount(received_packet)
-        print(outputFormatting(True, response_fields[0], response_fields[4], response_fields[2], response_time, 
-        num_retries, num_answers, responseCodeParser(received_packet), parseAuthoritative(received_packet), response_fields[5]))
+        output = f"Response received after {round(response_time, 3)} seconds ({num_retries} retries)\n\n***Answer Section ({num_answers} records)***\n\n"
+        temp_i = None
+        try:
+            if raParser(received_packet):
+                raise RuntimeError(f"Error: \t server does not support recursive query")
+        except Exception as e:
+            print(e)
+            sys.exit()
+        for i in range(num_answers):
+            try:
+                #response_fields = (r_type, r_class, r_ttl, rdlength, record, pref, record, start_index of next record)
+                response_fields = answerParser(packet, received_packet, names, temp_i)
+            except Exception as e:
+                print(e)
+                sys.exit()
+            if re.search(pattern_domain, response_fields[6]):
+                names.append(response_fields[6])
+            output += outputFormatting(True, response_fields[0], response_fields[4], response_fields[2], 
+            num_retries, responseCodeParser(received_packet), parseAuthoritative(received_packet),
+            response_fields[5], response_fields[6])
+            temp_i = response_fields[7]
+        print(output)
 
 """
 Replaces output string placeholders with values
@@ -64,18 +93,17 @@ Replaces output string placeholders with values
 :param pref: Level of preference of mail address, int
 :Returns: formatted f string ready for output, string
 """
-def outputFormatting(response_received_bool, r_type, responseIP, TTL, RTT, retries, n_answers, error_code, auth, pref):
+def outputFormatting(response_received_bool, r_type, responseIP, TTL, retries, error_code, auth, pref, record):
     output = f""
     if response_received_bool:
-        output += f"Response received after {RTT} seconds ({retries} retries)\n\n***Answer Section ({n_answers} records)***\n\n"
         if r_type == 1:
-            output += f"IP\t{responseIP}\t{TTL}\t{auth}\n"
+            output += f"IP \t {responseIP} \t {TTL} \t {auth}\n"
+        elif r_type == 5:
+            output += f"CNAME \t {record} \t {TTL} \t {auth}\n"
+        elif r_type == 15:
+            output += f"MX \t {record} \t {pref} \t {TTL} \t {auth}\n"
         elif r_type == 2:
-            output += f"CNAME <tab> [alias] <tab> {TTL}\t{auth}\n"
-        elif r_type == 3:
-            output += f"MX <tab> [alias] <tab> {pref}\t{TTL}\t{auth}\n"
-        elif r_type == 4:
-            output += f"NS <tab> [alias] <tab> {TTL}\t{auth}\n"
+            output += f"NS \t {record} \t{TTL} \t {auth}\n"
     elif error_code == 1:
         output += f"ERROR\tFormat error: the name server was unable to interpret the query\n" 
     elif error_code == 2: 
@@ -120,19 +148,6 @@ def parseAuthoritative(received_packet):
         return "auth"
 
 """
-Retrieves the recursive flag bit
-
-:param received_packet: Reponse packet received, bytearray
-:Returns: True->recursion, False->no recursion, bool
-"""
-def parseRecursive(received_packet):
-    ra_byte = bin(received_packet[3])
-    if len(ra_byte)<10 or int(ra_byte[2]) == 0:
-        return False
-    else:
-        return True
-
-"""
 Parses the response error code
 
 :param received_packet: Response packet received, bytearray
@@ -140,15 +155,43 @@ Parses the response error code
 """
 #when converted to binary number --> string with form 0bxxxxxxe
 def responseCodeParser(received_packet):
-    rcode_byte = bin(received_packet[1])
+    rcode_byte = bin(received_packet[3])
     error_code = 0
-    rcode0 = int(rcode_byte[-1])
-    rcode1 = int(rcode_byte[-2]) << 1
-    rcode2 = int(rcode_byte[-3]) << 2
-    rcode3 = int(rcode_byte[-4]) << 3
-    error_code = rcode0 + rcode1 + rcode2+ rcode3
-    return error_code #if not 0 - return appropriate error message
+    if len(rcode_byte) == 3:
+        rcode0 = int(rcode_byte[-1])
+        return rcode0
+    elif len(rcode_byte) == 4:
+        rcode0 = int(rcode_byte[-1])
+        rcode1 = int(rcode_byte[-2]) << 1
+        error_code = rcode0 + rcode2
+        return error_code
+    elif len(rcode_byte) == 5:
+        rcode0 = int(rcode_byte[-1])
+        rcode1 = int(rcode_byte[-2]) << 1
+        rcode2 = int(rcode_byte[-3]) << 2
+        error_code = rcode0 + rcode1 + rcode2
+        return error_code
+    elif len(rcode_byte) == 6:
+        rcode0 = int(rcode_byte[-1])
+        rcode1 = int(rcode_byte[-2]) << 1
+        rcode2 = int(rcode_byte[-3]) << 2
+        rcode3 = int(rcode_byte[-4]) << 3
+        error_code = rcode0 + rcode1 + rcode2+ rcode3
+        return error_code #if not 0 - return appropriate error message
 
+"""
+Retrieves the recursive flag bit
+
+:param received_packet: Reponse packet received, bytearray
+:Returns: True->recursion, False->no recursion, bool
+"""
+def raParser(received_packet):
+    racode_byte = bin(received_packet[3])
+    if len(racode_byte) != 10:
+        return False
+    else: 
+        if racode_byte[2] == 1:
+            return True
 """
 Formats a name from the response packet into a valid string
 
@@ -160,26 +203,29 @@ def parseNameField(response, index):
     name = ""
     oldIndex = index
     flag = False
-    #print("starts at ", index)
+    loop_check = 0
     while int(response[index]) != 0:
-        if int(response[index]) - 192 >= 0:
+        if(loop_check >= 100):
+            raise RuntimeError(f"Error: \t Unexpected response: response packet contains invalid format")
+        # Detects if the cur byte is the start of a pointer
+        if int(response[index]) - 192 >= 0: # 192 = 11000000 in binary
             flag = True
             oldIndex = index + 2
             temp = response[index]
             temp = temp << 8
             temp += response[index + 1]
-            index = int(temp) - 49152 #not sure if this index is indexed by 0 or 1
+            index = int(temp) - 49152 # 49152 = 11000000 00000000 in binary
     
         token_length = int(response[index])
         index += 1
+        #print("Before for: ", response[index])
         for i in range(token_length):
-            #print("in for loop ", index)
-            #print("Name is : ", name)
             name += chr(response[index])
             index += 1
         if flag == True and int(response[index]) == 0: # Hit end of pointer
             index = oldIndex
         name += "."
+        loop_check += 1
     return name[:-1]
 
 """
@@ -188,13 +234,14 @@ Finds the length of a name field
 :param response: Response packet received, bytearray
 :Returns: Length of name field, int
 """
-def getRNameLength(response):
-    if int(response[0]) - 192 >= 0:
+def getRNameLength(response, name_i):
+    if int(response[name_i]) - 192 >= 0:
         return 2
     else:
-        for i in range(len(response)):
-            if int(response[i]) == 0:
-                return i+1
+        while response[name_i] != 0:
+            name_i += 1
+        return i+1
+        
 
 """
 Retrieves all the key information from the respponse section of the received packet
@@ -204,64 +251,69 @@ Retrieves all the key information from the respponse section of the received pac
 :param queryName: Domain name in the query, string
 :Returns: Key values in answer section of response, 6-tuple
 """
-def answerParser(queryPacket, received_packet, queryName):
-    answer = received_packet[len(queryPacket):]
+def answerParser(queryPacket, received_packet, nameList, i):
     return_list = []
-    name = parseNameField(received_packet, len(queryPacket))
-    if(name != queryName):
-        return "Error"
+    if i == None:
+        start_index = len(queryPacket)
     else:
-        start_index = getRNameLength(answer)
-        r_type = answer[start_index]  
-        start_index += 1
-        r_type = r_type << 8
-        r_type += answer[start_index]
-        start_index += 1
+        start_index = i
+    name = parseNameField(received_packet, start_index)
+    try:
+        if not name in nameList:
+            raise  RuntimeError("Error: response is unrelated to the query domain")
+    except Exception as e:
+        print(e)
+        sys.exit()
 
-        r_class = answer[start_index]
-        start_index += 1
-        r_class = r_class << 8
-        r_class += answer[start_index]
-        start_index += 1
+    start_index += getRNameLength(received_packet, start_index)
+    r_type = received_packet[start_index]  
+    start_index += 1
+    r_type = r_type << 8
+    r_type += received_packet[start_index]
+    start_index += 1
 
-        r_cache_time = answer[start_index]
+    r_class = received_packet[start_index]
+    start_index += 1
+    r_class = r_class << 8
+    r_class += received_packet[start_index]
+    start_index += 1
+
+    r_cache_time = received_packet[start_index]
+    for i in range(3):
+        start_index += 1
+        r_cache_time = r_cache_time << 8
+        r_cache_time += received_packet[start_index]
+    start_index += 1
+
+    r_rdlength = received_packet[start_index]
+    start_index += 1
+    r_rdlength = r_rdlength << 8
+    r_rdlength = received_packet[start_index]
+    start_index += 1
+        
+    record = ""
+    pref = None
+    ip = ""
+    if int(r_type) == 1:
+        ip += str(received_packet[start_index])
         for i in range(3):
+            ip += "."
             start_index += 1
-            r_cache_time = r_cache_time << 8
-            r_cache_time += answer[start_index]
+            ip += str(received_packet[start_index])
+
         start_index += 1
+    elif int(r_type) == 2:
+        record = parseNameField(received_packet, start_index)
+    elif int(r_type) == 5:
+        record = parseNameField(received_packet, start_index)
+    elif int(r_type) == 15:
+        pref = received_packet[start_index]
+        pref = pref << 8
+        pref += received_packet[start_index + 1]
+        start_index += 2
+        record = parseNameField(received_packet, start_index)
 
-        r_rdlength = answer[start_index]
-        start_index += 1
-        r_rdlength = r_rdlength << 8
-        r_rdlength = answer[start_index]
-        start_index += 1
-
-        record = 0
-        pref = None
-        if int(r_type) == 1:
-            ip = ""
-            record = answer[start_index]
-            ip += str(record)
-            for i in range(3):
-                ip += "."
-                start_index += 1
-                record = answer[start_index]
-                ip += str(record)
-
-            start_index += 1
-        elif int(r_type) == 2:
-            record = parseNameField(answer, start_index)
-        elif int(r_type) == 5:
-            record = parseNameField(answer, start_index)
-        elif int(r_type) == 15:
-            pref = answer[start_index]
-            pref = pref << 8
-            pref += answer[start_index + 1]
-            start_index += 2
-            record = parseNameField(answer, start_index)
-
-        return (r_type, r_class, r_cache_time, r_rdlength, ip, pref)
+    return (r_type, r_class, r_cache_time, r_rdlength, ip, pref, record, start_index + r_rdlength)
 
 
 if __name__ == '__main__':

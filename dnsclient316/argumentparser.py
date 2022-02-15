@@ -15,7 +15,7 @@ class Parser:
     def parseTerminalArguments(self, args):
         args_dict = {"timeout": 5, "port": 53, "retries": 3, "queryType": "ip", "server": None, "domain": None}
         pattern_ip = "@[0-9]*.[0-9]*.[0-9]*.[0-9]"
-        pattern_domain = "[0-9a-zA-Z]*.([0-9a-zA-Z]*)+.[0-9a-zA-Z]*"
+        pattern_domain = "([0-9a-zA-Z]*.)*([0-9a-zA-Z]*)+.[0-9a-zA-Z]*"
 
         if re.search(pattern_ip, args[len(args)-2]) and re.search(pattern_domain, args[len(args)-1]):
             args_dict["server"] = args[len(args)-2].replace("@", "")
@@ -32,27 +32,27 @@ class Parser:
                 case "-t":
                     if not flags[i+1].isdigit():
                         return "Error! Bad argument"
-                    args_dict["timeout"] = flags[i+1]
+                    args_dict["timeout"] = int(flags[i+1])
                 case "--timeout":
                     if not flags[i+1].isdigit():
                         return "Error! Bad argument"
-                    args_dict["timeout"] = flags[i+1]
+                    args_dict["timeout"] = int(flags[i+1])
                 case "-p": 
                     if not flags[i+1].isdigit():
                         return "Error! Bad argument"
-                    args_dict["port"] = flags[i+1]
+                    args_dict["port"] = int(flags[i+1])
                 case "--port":
                     if not flags[i+1].isdigit():
                         return "Error! Bad argument"
-                    args_dict["port"] = flags[i+1]
+                    args_dict["port"] = int(flags[i+1])
                 case "-r":
                     if not flags[i+1].isdigit():
                         return "Error! Bad argument"
-                    args_dict["retries"] = flags[i+1]        
+                    args_dict["retries"] = int(flags[i+1])     
                 case "--retries":
                     if not flags[i+1].isdigit():
                         return "Error! Bad argument"
-                    args_dict["retries"] = flags[i+1]
+                    args_dict["retries"] = int(flags[i+1])
                 case "-mx":
                     args_dict["queryType"] = "mx"
                 case "-ns":
