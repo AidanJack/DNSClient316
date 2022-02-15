@@ -75,10 +75,17 @@ class DNS:
         return qName
 
     @staticmethod
-    def generateQType():
-        qType = bytearray("", "UTF-32-BE")  # needs to choose between 1, 2, and 3. for now use 1 since default ip type.
-        qType.append(0)
-        qType.append(1)
+    def generateQType(q_type): 
+        qType = bytearray("", "UTF-32-BE")  # needs to choose between 1, 2, and 15. for now use 1 since default ip type.
+        if q_type == "mx":
+            qType.append(0)
+            qType.append(15)
+        elif q_type == "ns":
+            qType.append(0)
+            qType.append(2)
+        else:
+            qType.append(0)
+            qType.append(1)
         return qType
 
     @staticmethod
@@ -89,9 +96,9 @@ class DNS:
         return qClass
 
     @staticmethod
-    def generateDNSQuestions(name):
+    def generateDNSQuestions(name, q_type):
         questions = bytearray("", "UTF-32-BE")
         questions.extend(DNS.generateQName(name))
-        questions.extend(DNS.generateQType())
+        questions.extend(DNS.generateQType(q_type))
         questions.extend(DNS.generateQClass())
         return questions
