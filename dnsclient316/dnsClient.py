@@ -48,7 +48,7 @@ def main():
             break
         if i == args.retries - 1:
             retried_max = True
-
+    
     if retried_max == True: #Case 1: Did not receive response
         print(f"ERROR\tMaximum number of retries {args.retries} exceeded")
     
@@ -224,9 +224,12 @@ def parseNameField(response, index):
             index += 1
         if flag == True and int(response[index]) == 0: # Hit end of pointer
             index = oldIndex
+            break
         name += "."
         loop_check += 1
-    return name[:-1]
+    if name[-1] == ".":
+        name = name[:-1]
+    return name
 
 """
 Finds the length of a name field
@@ -252,7 +255,6 @@ Retrieves all the key information from the respponse section of the received pac
 :Returns: Key values in answer section of response, 6-tuple
 """
 def answerParser(queryPacket, received_packet, nameList, i):
-    return_list = []
     if i == None:
         start_index = len(queryPacket)
     else:
@@ -295,13 +297,13 @@ def answerParser(queryPacket, received_packet, nameList, i):
     pref = None
     ip = ""
     if int(r_type) == 1:
-        ip += str(received_packet[start_index])
+        temp_index = start_index
+        ip += str(received_packet[temp_index])
         for i in range(3):
             ip += "."
-            start_index += 1
-            ip += str(received_packet[start_index])
+            temp_index += 1
+            ip += str(received_packet[temp_index])
 
-        start_index += 1
     elif int(r_type) == 2:
         record = parseNameField(received_packet, start_index)
     elif int(r_type) == 5:
