@@ -1,13 +1,14 @@
-Course: ECSE 316
+# DNS Client
 
-Team Members:
-Aidan Jackson
-Mia Stevanovic
+#### Team Members:
+Aidan Jackson: Software Engineering <br>
+Mia Stevanovic: Software Engineering
 
-Assignment_1 - DNS Client:
-
-Language:
+#### Language:
 Python
+
+#### Project Documentation
+
 
 Run Instructions:
 1. Open Terminal
