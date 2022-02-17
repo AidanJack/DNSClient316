@@ -7,5 +7,5 @@ Mia Stevanovic: Software Engineering
 #### Language:
 Python
 
-#### Project Documentation
+#### Project Documentation:
 https://github.com/AidanJack/DNSClient316/wiki/Project-Documentation
