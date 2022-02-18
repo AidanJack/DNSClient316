@@ -54,11 +54,11 @@ def main():
     
     else:                   # Case 2: Recevied response
         response_time = end_time-start_time
-        num_answers = parseAnsCount(received_packet)
+        num_answers = DNS.parseAnsCount(received_packet)
         output = f"Response received after {round(response_time, 3)} seconds ({num_retries} retries)\n\n***Answer Section ({num_answers} records)***\n\n"
         temp_i = None
         try:
-            if raParser(received_packet):
+            if DNS.raParser(received_packet):
                 raise RuntimeError(f"Error: \t server does not support recursive query")
         except Exception as e:
             print(e)
@@ -73,7 +73,7 @@ def main():
             if re.search(pattern_domain, response_fields[6]):
                 names.append(response_fields[6])
             output += outputFormatting(True, response_fields[0], response_fields[4], response_fields[2], 
-            num_retries, responseCodeParser(received_packet), parseAuthoritative(received_packet),
+            num_retries, DNS.responseCodeParser(received_packet), DNS.parseAuthoritative(received_packet),
             response_fields[5], response_fields[6])
             temp_i = response_fields[7]
         print(output)
@@ -115,83 +115,10 @@ def outputFormatting(response_received_bool, r_type, responseIP, TTL, retries, e
     elif error_code == 5: 
         output += f"ERROR\tRefused: The name server refuses to perform the requested operation for policy reasons\n"
     elif error_code == 6: 
-        output += f"ERROR\tMaximum number of retries {args.retries} exceeded"
+        output += f"ERROR\tMaximum number of retries {retries} exceeded"
         
     return output
 
-"""
-Finds the number of answers in the response packet
-
-:param received_packet: Response packet received, bytearray
-:Returns: Number of answers in response packet, int 
-"""
-def parseAnsCount(received_packet):
-    msbits = int(received_packet[6])
-    msbits = msbits << 8
-    lsbits = received_packet[7]
-    anscount = msbits + lsbits
-    return anscount
-
-"""
-Retrieves the authoritative flag
-
-:param received_packet: Response packet received, bytearray
-:Returns: "auth" if server is authoritative, else: "nonauth", string
-"""
-def parseAuthoritative(received_packet):
-    aa_byte = bin(received_packet[2])
-    if len(aa_byte)<5:
-        return "nonauth"
-    if int(aa_byte[-3]) == 0: # AA bit in header
-        return "nonauth"
-    else:
-        return "auth"
-
-"""
-Parses the response error code
-
-:param received_packet: Response packet received, bytearray
-:Returns: Error code, 0->no error, !=0->some error, int
-"""
-#when converted to binary number --> string with form 0bxxxxxxe
-def responseCodeParser(received_packet):
-    rcode_byte = bin(received_packet[3])
-    error_code = 0
-    if len(rcode_byte) == 3:
-        rcode0 = int(rcode_byte[-1])
-        return rcode0
-    elif len(rcode_byte) == 4:
-        rcode0 = int(rcode_byte[-1])
-        rcode1 = int(rcode_byte[-2]) << 1
-        error_code = rcode0 + rcode2
-        return error_code
-    elif len(rcode_byte) == 5:
-        rcode0 = int(rcode_byte[-1])
-        rcode1 = int(rcode_byte[-2]) << 1
-        rcode2 = int(rcode_byte[-3]) << 2
-        error_code = rcode0 + rcode1 + rcode2
-        return error_code
-    elif len(rcode_byte) == 6:
-        rcode0 = int(rcode_byte[-1])
-        rcode1 = int(rcode_byte[-2]) << 1
-        rcode2 = int(rcode_byte[-3]) << 2
-        rcode3 = int(rcode_byte[-4]) << 3
-        error_code = rcode0 + rcode1 + rcode2+ rcode3
-        return error_code #if not 0 - return appropriate error message
-
-"""
-Retrieves the recursive flag bit
-
-:param received_packet: Reponse packet received, bytearray
-:Returns: True->recursion, False->no recursion, bool
-"""
-def raParser(received_packet):
-    racode_byte = bin(received_packet[3])
-    if len(racode_byte) != 10:
-        return False
-    else: 
-        if racode_byte[2] == 1:
-            return True
 """
 Formats a name from the response packet into a valid string
 
