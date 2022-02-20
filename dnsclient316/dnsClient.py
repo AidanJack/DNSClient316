@@ -38,10 +38,12 @@ def main():
             if end_time - start_time > args.timeout: # If time from send to receive exceeds timeout resend and retry
                 num_retries = num_retries+1
                 break
+
             try:
                 received_packet, _ = sock.recvfrom(4096)
             except:
                 continue
+
             flag = True
             break
         if flag == True:
@@ -63,15 +65,19 @@ def main():
         except Exception as e:
             print(e)
             sys.exit()
+
         for i in range(num_answers):
             try:
                 #response_fields = (r_type, r_class, r_ttl, rdlength, record, pref, record, start_index of next record)
                 response_fields = answerParser(packet, received_packet, names, temp_i)
+
             except Exception as e:
                 print(e)
                 sys.exit()
-            if re.search(pattern_domain, response_fields[6]):
+
+            if re.search(pattern_domain, response_fields[6]): # If record is a domain name append to domain history
                 names.append(response_fields[6])
+            
             output += outputFormatting(True, response_fields[0], response_fields[4], response_fields[2], 
             num_retries, DNS.responseCodeParser(received_packet), DNS.parseAuthoritative(received_packet),
             response_fields[5], response_fields[6])
@@ -157,20 +163,6 @@ def parseNameField(response, index):
     if name[-1] == ".":
         name = name[:-1]
     return name
-
-"""
-Finds the length of a name field
-
-:param response: Response packet received, bytearray
-:Returns: Length of name field, int
-"""
-def getRNameLength(response, name_i):
-    if int(response[name_i]) - 192 >= 0:
-        return 2
-    else:
-        while response[name_i] != 0:
-            name_i += 1
-        return i+1
         
 
 """
@@ -194,7 +186,7 @@ def answerParser(queryPacket, received_packet, nameList, i):
         print(e)
         sys.exit()
 
-    start_index += getRNameLength(received_packet, start_index)
+    start_index += DNS.getRNameLength(received_packet, start_index)
     r_type = received_packet[start_index]  
     start_index += 1
     r_type = r_type << 8

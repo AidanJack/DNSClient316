@@ -179,3 +179,18 @@ class DNS:
         else: 
             if racode_byte[2] == 1:
                 return True
+
+    """
+    Finds the length of a name field
+
+    :param response: Response packet received, bytearray
+    :Returns: Length of name field, int
+    """
+    @staticmethod
+    def getRNameLength(response, name_i):
+        if int(response[name_i]) - 192 >= 0:
+            return 2
+        else:
+            while response[name_i] != 0:
+                name_i += 1
+            return i+1

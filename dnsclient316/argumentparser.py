@@ -12,12 +12,18 @@ class Parser:
         self.domain = temp_dict.get("domain")
 
 
+    """
+    Parses the terminal arguments and updates a dictionary accordingly
 
+    :param args: All terminal arguments, typically from sys.argv
+    :returns: Dictionary of argument, value pairs
+    """
     def parseTerminalArguments(self, args):
         args_dict = {"timeout": 5, "port": 53, "retries": 3, "queryType": "ip", "server": None, "domain": None}
         pattern_ip = "@[0-9]*.[0-9]*.[0-9]*.[0-9]"
         pattern_domain = "([0-9a-zA-Z]*.)*([0-9a-zA-Z]*)+.[0-9a-zA-Z]*"
 
+        # Ensures the required arguments were provided
         if re.search(pattern_ip, args[len(args)-2]) and re.search(pattern_domain, args[len(args)-1]):
             args_dict["server"] = args[len(args)-2].replace("@", "")
             args_dict["domain"] = args[len(args)-1]
@@ -28,6 +34,7 @@ class Parser:
                 print(e)
                 sys.exit()
 
+        # Parses any provided flags and checks for appropriate format
         flags = args[1:-2]
         for i in range(len(flags)):
             try:
@@ -72,5 +79,6 @@ class Parser:
                 sys.exit()
         return args_dict
 
+# Custom exception type thrown by parseTerminalArguments
 class ArgumentException(Exception):
     pass
